@@ -49,3 +49,32 @@ n = GetClosest(G,8,19)
 print (n.name) # La respuesta debe ser B
 
 
+def test_CreateGraphFromFile():
+    # Creem el graf des d'un fitxer
+    G = CreateGraphFromFile("graph_data.txt")
+
+    # Comprovem que els nodes es van afegir correctament
+    assert len(G.nodes) > 0, "No s'han afegit nodes"
+
+    # Comprovem que els segments es van afegir correctament
+    assert len(G.segments) > 0, "No s'han afegit segments"
+
+    # Verifiquem alguns valors específics
+    node_names = [n.name for n in G.nodes]
+    assert "A" in node_names, "Node A no trobat"
+    assert "B" in node_names, "Node B no trobat"
+
+    segment_names = [s.name for s in G.segments]
+    assert "AB" in segment_names, "Segment AB no trobat"
+    assert "AE" in segment_names, "Segment AE no trobat"
+
+    # Mostrar el gràfic
+    Plot(G)  # Aquesta línia permet visualitzar el gràfic creat
+
+    print("Test creat gràfic des de fitxer: OK")
+
+
+# Cridem la funció de prova
+test_CreateGraphFromFile()
+
+
