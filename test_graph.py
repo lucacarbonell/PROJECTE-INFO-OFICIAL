@@ -1,4 +1,5 @@
 from graph import *
+
 def CreateGraph_1 ():
     G = Graph()
     AddNode(G, node("A",1,20))
@@ -39,42 +40,85 @@ def CreateGraph_1 ():
     AddSegment(G, "LK","L","K")
     AddSegment(G, "LF","L","F")
     return G
-print ("Probando el grafo...")
-G = CreateGraph_1 ()
-Plot(G)
-PlotNode(G, "C")
-n = GetClosest(G,15,5)
-print (n.name) # La respuesta debe ser J
-n = GetClosest(G,8,19)
-print (n.name) # La respuesta debe ser B
+
+def CreateGraph_2():
+    H = Graph()
+
+    # Afegim nodes inventats
+    AddNode(H, node("A", 4, 8))
+    AddNode(H, node("B", 2, 5))
+    AddNode(H, node("C", 4, 1))
+    AddNode(H, node("D", 7, 3))
+    AddNode(H, node("E", 2, 2))
+    AddNode(H, node("F", 1, 5))
+
+    # Afegim segments inventats
+    AddSegment(H, "AC", "A", "C")
+    AddSegment(H, "DA", "D", "A")
+    AddSegment(H, "CF", "C", "F")
+    AddSegment(H, "FB", "F", "B")
+    AddSegment(H, "EF", "E", "F")
+    AddSegment(H, "AB", "A", "B")
+
+    # Mostrar el gràfic creat
+    return H
+
+if __name__ == "__main__":
+    print("Probando el grafo...")
+    G = CreateGraph_1()
+    Plot(G)
+    PlotNode(G, "C")
+
+    n = GetClosest(G, 15, 5)
+    print(n.name)  # La respuesta debe ser J
+    n = GetClosest(G, 8, 19)
+    print(n.name)  # La respuesta debe ser B
+
+    H = CreateGraph_2()
+    Plot(H)
 
 
-def test_CreateGraphFromFile():
+def CreateGraphFromFile():
     # Creem el graf des d'un fitxer
-    G = CreateGraphFromFile("graph_data.txt")
+    H = CreateGraphFromFile("graph_data.txt")
 
     # Comprovem que els nodes es van afegir correctament
-    assert len(G.nodes) > 0, "No s'han afegit nodes"
+    assert len(H.nodes) > 0, "No s'han afegit nodes"
 
     # Comprovem que els segments es van afegir correctament
-    assert len(G.segments) > 0, "No s'han afegit segments"
+    assert len(H.segments) > 0, "No s'han afegit segments"
 
     # Verifiquem alguns valors específics
-    node_names = [n.name for n in G.nodes]
+    node_names = [n.name for n in H.nodes]
     assert "A" in node_names, "Node A no trobat"
     assert "B" in node_names, "Node B no trobat"
 
-    segment_names = [s.name for s in G.segments]
+    segment_names = [s.name for s in H.segments]
     assert "AB" in segment_names, "Segment AB no trobat"
     assert "AE" in segment_names, "Segment AE no trobat"
 
     # Mostrar el gràfic
-    Plot(G)  # Aquesta línia permet visualitzar el gràfic creat
-
-    print("Test creat gràfic des de fitxer: OK")
+    Plot(H)  # Aquesta línia permet visualitzar el gràfic creat
 
 
-# Cridem la funció de prova
-test_CreateGraphFromFile()
 
+from graph import *
+
+
+def CreateGraphFromFileTest(file_path):
+    # Crear el gràfic des de fitxer
+    G = Graph().CreateGraphFromFile(file_path)
+
+    # Mostrar el gràfic creat
+    Plot(G)
+
+    # Comprovem que els nodes i segments han estat creats correctament
+    print(f"Nodes creats: {[n.name for n in G.nodes]}")
+    print(f"Segments creats: {[s.name for s in G.segments]}")
+
+
+# Cridar la prova
+if __name__ == "__main__":
+    print("Provant la funció CreateGraphFromFile...")
+    CreateGraphFromFileTest("graph_data.txt")  # Aquesta ruta ha de ser correcta
 

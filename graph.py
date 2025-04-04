@@ -3,6 +3,7 @@ from segment import segment
 import matplotlib.pyplot as plt
 import math
 
+
 class Graph:
     def __init__(self):
         self.nodes = []
@@ -93,40 +94,37 @@ class Graph:
 
         return True
 
+    def CreateGraphFromFile(self, file_path):
+        """Crea un gràfic a partir d'un fitxer amb nodes i segments"""
+        new_graph = Graph()
+        try:
+            with open(file_path, 'r') as file:
+                lines = file.readlines()
+                mode = None
+                for line in lines:
+                    line = line.strip()
+                    if not line:  # Skip empty lines
+                        continue
 
-def CreateGraphFromFile(filename):
-    G = Graph()
+                    if line == "Nodes:":
+                        mode = "nodes"
+                        continue
+                    elif line == "Segments:":
+                        mode = "segments"
+                        continue
 
-    with open(filename, 'r') as f:
-        lines = f.readlines()
+                    parts = line.split()
 
-    # Llegim els nodes
-    node_section = True
-    for line in lines:
-        line = line.strip()
+                    if mode == "nodes" and len(parts) == 3:
+                        # Format: A 1 20
+                        AddNode(new_graph, node(parts[0], float(parts[1]), float(parts[2])))
+                    elif mode == "segments" and len(parts) == 3:
+                        # Format: AB A B
+                        AddSegment(new_graph, parts[0], parts[1], parts[2])
 
-        if line == "Segments:":
-            node_section = False
-            continue
-
-        if node_section:
-            # La línia és d'un node
-            parts = line.split()
-            if len(parts) == 3:
-                name = parts[0]
-                x = float(parts[1])
-                y = float(parts[2])
-                AddNode(G, node(name, x, y))
-        else:
-            # La línia és d'un segment
-            parts = line.split()
-            if len(parts) == 3:
-                name_segment = parts[0]
-                name_origin = parts[1]
-                name_destination = parts[2]
-                AddSegment(G, name_segment, name_origin, name_destination)
-
-    return G
+        except FileNotFoundError:
+            print(f"Error: El fitxer {file_path} no es troba.")
+        return new_graph
 
 
 # Funcions globals per compatibilitat amb test_graph.py
