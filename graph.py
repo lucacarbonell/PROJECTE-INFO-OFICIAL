@@ -64,35 +64,59 @@ class Graph:
         plt.title("Espai Aeri")
         plt.show()
 
-    def PlotNode(self, nameOrigin):
-        node = next((n for n in self.nodes if n.name == nameOrigin), None)
+    def AddNodeInteractive(self, x, y):
+        """Afegir un node a les coordenades seleccionades per l'usuari"""
+        node_name = f"Node{x}-{y}"
+        new_node = node(node_name, x, y)
+        self.AddNode(new_node)
+        return new_node
+
+    def AddSegmentInteractive(self, node1, node2):
+        """Afegir un segment entre dos nodes seleccionats per l'usuari"""
+        segment_name = f"Seg_{node1.name}_{node2.name}"
+        self.AddSegment(segment_name, node1.name, node2.name)
+
+    def RemoveNode(self, node_name):
+        """Eliminar un node i els seus segments associats"""
+        node_to_remove = next((n for n in self.nodes if n.name == node_name), None)
+        if node_to_remove:
+            # Eliminar els segments associats a aquest node
+            self.segments = [s for s in self.segments if s.origin != node_to_remove and s.destination != node_to_remove]
+            # Eliminar el node de la llista de nodes
+            self.nodes.remove(node_to_remove)
+            return True
+        return False
+
+    def SaveToFile(self, filename):
+        """Guardar el gràfic en un fitxer de text amb el format indicat"""
+        with open(filename, 'w') as file:
+            file.write("Nodes:\n")
+            for node in self.nodes:
+                file.write(f"{node.name} {node.x} {node.y}\n")
+
+            file.write("\nSegments:\n")
+            for segment in self.segments:
+                file.write(f"{segment.name} {segment.origin.name} {segment.destination.name}\n")
+
+    def PlotNode(self, node_name):
+        """Mostra un node específic i els seus veïns"""
+        node = next((n for n in self.nodes if n.name == node_name), None)
         if not node:
             return False
 
         fig, ax = plt.subplots()
-
-        for n in self.nodes:
-            ax.scatter(n.x, n.y, color='gray')
-            ax.text(n.x, n.y, n.name, fontsize=12, verticalalignment='bottom')
-
         ax.scatter(node.x, node.y, color='blue')
+        ax.text(node.x, node.y, node.name, fontsize=12, verticalalignment='bottom')
 
         for neighbor in node.neighbors:
             ax.scatter(neighbor.x, neighbor.y, color='green')
             ax.plot([node.x, neighbor.x], [node.y, neighbor.y], 'r-', linewidth=2)
 
-            # Afegir el cost (distància) al centre del segment
-            mid_x = (node.x + neighbor.x) / 2
-            mid_y = (node.y + neighbor.y) / 2
-            distance = self.CalculateDistance(node, neighbor)
-            ax.text(mid_x, mid_y, f"{distance:.2f}", fontsize=10, color='red')
+        ax.set_xlabel("X")
+        ax.set_ylabel("Y")
+        ax.set_title(f"Veïns de {node_name}")
 
-        plt.xlabel("X")
-        plt.ylabel("Y")
-        plt.title(f"Connections of {nameOrigin}")
         plt.show()
-
-        return True
 
     def CreateGraphFromFile(self, file_path):
         """Crea un gràfic a partir d'un fitxer amb nodes i segments"""
@@ -126,6 +150,16 @@ class Graph:
             print(f"Error: El fitxer {file_path} no es troba.")
         return new_graph
 
+    def DesignGraph(self):
+        """Permet dissenyar un gràfic afegint nodes i segments interactivament."""
+        self.nodes = []  # Reseteja els nodes
+        self.segments = []  # Reseteja els segments
+
+        print("Dissenya el gràfic. Fes clic per afegir nodes i segments.")
+        # Esperem que el codi per interactuar amb Tkinter estigui implementat a la interfície per afegir nodes i segments
+        # Aquesta funcionalitat es podria implementar a la interficie gràfica (vegeu els canvis a interface.py)
+
+        return self
 
 # Funcions globals per compatibilitat amb test_graph.py
 def AddNode(G, n: node):
