@@ -1,12 +1,24 @@
-from node import node
-from segment import segment
+from node import Node
+from segment import Segment
 
-n1 = node("A", 1, 3)
-n2 = node("B", 3, 4)
-n3 = node("C", 6, 9)
+# Crear 3 nodos
+n1 = Node('A', 1, 1)
+n2 = Node('B', 4, 5)
+n3 = Node('C', 8, 2)
 
-s1 = segment("Segment 1", n1, n2)
-s2 = segment("Segment 2", n2, n3)
+# Crear segmentos
+seg1 = Segment('AB', n1, n2)
+seg2 = Segment('BC', n2, n3)
 
-print(f"{s1.name}: {s1.origin.name} -> {s1.destination.name}, Cost: {s1.cost}")
-print(f"{s2.name}: {s2.origin.name} -> {s2.destination.name}, Cost: {s2.cost}")
+# Mostrar información
+print("Segmento 1:")
+print(f"Nombre: {seg1.name}")
+print(f"Origen: {seg1.origin.name}")
+print(f"Destino: {seg1.destination.name}")
+print(f"Costo: {seg1.cost:.2f}")
+
+print("\nSegmento 2:")
+print(f"Nombre: {seg2.name}")
+print(f"Origen: {seg2.origin.name}")
+print(f"Destino: {seg2.destination.name}")
+print(f"Costo: {seg2.cost:.2f}")

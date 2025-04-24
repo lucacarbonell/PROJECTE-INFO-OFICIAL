@@ -1,7 +1,7 @@
-from node import node, Distance
+from node import Distance
 
-class segment:
-    def __init__(self, name: str, origin: node, destination: node):
+class Segment:
+    def __init__(self, name, origin, destination):
         self.name = name
         self.origin = origin
         self.destination = destination
