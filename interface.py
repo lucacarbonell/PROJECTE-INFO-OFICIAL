@@ -1,401 +1,533 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox
-from graph import *
+from tkinter import filedialog
+from airSpace import airSpace
+from path import a_star
+from path import a_star, bfs_fallback
+from matplotlib.patches import Arrow
+from tkinter import messagebox
+import traceback
+
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-from node import Distance
+# Crear instancia del espacio aéreo
+airspace = airSpace()
 
+# -------------------- CARGA DE ARCHIVOS --------------------
 
-class GraphApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Graph Explorer - Version 1")
-        self.current_graph = None
+def load_files():
+    filepaths = filedialog.askopenfilenames(
+        title="Seleccione los 3 archivos (nav, seg, aer)",
+        filetypes=[("Text files", "*.txt")]
+    )
 
-        # Frame principal
-        self.main_frame = tk.Frame(root)
-        self.main_frame.pack(fill=tk.BOTH, expand=True)
+    if len(filepaths) != 3:
+        messagebox.showerror("Error", "Debe seleccionar exactamente 3 archivos")
+        return
 
-        # Frame para controles
-        self.control_frame = tk.Frame(self.main_frame)
-        self.control_frame.pack(side=tk.LEFT, fill=tk.Y, padx=5, pady=5)
+    global airspace
+    airspace = airSpace()
+    airspace.load_from_files(*filepaths)
 
-        # Frame para el gráfico
-        self.graph_frame = tk.Frame(self.main_frame)
-        self.graph_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+    # Mostrar resumen en consola
+    print(f"\n✅ Datos cargados:")
+    print(f"- Nodos: {len(airspace.navpoints)}")
+    print(f"- Segmentos: {len(airspace.navsegments)}")
+    print(f"- Aeropuertos: {len(airspace.navairports)}\n")
 
-        # Botones
-        tk.Button(self.control_frame, text="Show Example Graph 1",
-                  command=self.show_example_graph1).pack(fill=tk.X, pady=2)
-        tk.Button(self.control_frame, text="Show Example Graph 2",
-                  command=self.show_example_graph2).pack(fill=tk.X, pady=2)
-        tk.Button(self.control_frame, text="Load Graph from File",
-                  command=self.load_graph_from_file).pack(fill=tk.X, pady=2)
-        tk.Button(self.control_frame, text="Show Node Neighbors",
-                  command=self.show_node_neighbors).pack(fill=tk.X, pady=2)
-        tk.Button(self.control_frame, text="Add Node",
-                  command=self.add_node_dialog).pack(fill=tk.X, pady=2)
-        tk.Button(self.control_frame, text="Add Segment",
-                  command=self.add_segment_dialog).pack(fill=tk.X, pady=2)
-        tk.Button(self.control_frame, text="Delete Node",
-                  command=self.delete_node_dialog).pack(fill=tk.X, pady=2)
-        tk.Button(self.control_frame, text="Create New Graph",
-                  command=self.create_new_graph).pack(fill=tk.X, pady=2)
-        tk.Button(self.control_frame, text="Save Graph to File",
-                  command=self.save_graph_to_file).pack(fill=tk.X, pady=2)
-        tk.Button(self.control_frame, text="Find Shortest Path",
-                  command=self.show_shortest_path).pack(fill=tk.X, pady=2)
+    status_label.config(
+        text=f"✅ Datos cargados: {len(airspace.navpoints)} nodos, {len(airspace.navsegments)} segmentos")
+    plot_complete_map()  # Mostrar el mapa automáticamente
 
+# -------------------- REACHABILITY --------------------
 
+def show_reachability():
+    origin_name = entry_origin.get().strip().upper()
+    origin = airspace.get_navpoint_by_name(origin_name)
 
-        # Área para mostrar el gráfico
-        self.figure, self.ax = plt.subplots(figsize=(8, 6))
-        self.canvas = FigureCanvasTkAgg(self.figure, master=self.graph_frame)
-        self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+    if not origin:
+        output_text.insert(tk.END, f"❌ Nodo '{origin_name}' no encontrado\n")
+        return
 
-        # Estado inicial
-        self.clear_graph_display()
+    direct_reachable = airspace.get_direct_reachable(origin)  # Usa la función modificada
+    output_text.delete(1.0, tk.END)
+    output_text.insert(tk.END, f"Nodos directamente alcanzables desde {origin.name}:\n")
 
-    def clear_graph_display(self):
-        self.ax.clear()
-        self.ax.set_title("No graph loaded")
-        self.ax.set_xticks([])
-        self.ax.set_yticks([])
-        self.canvas.draw()
+    for node in direct_reachable:
+        seg = next((s for s in airspace.navsegments
+                    if s.origin_number == origin.number and s.destination_number == node.number), None)
+        distance = f"{seg.distance:.1f} km" if seg else "? km"
+        output_text.insert(tk.END, f"- {node.name} ({distance})\n")
 
-    def show_example_graph1(self):
-        self.current_graph = CreateGraph_1()
-        self.plot_current_graph()
+    plot_direct_reachability(airspace, origin, direct_reachable)  # Llama a la NUEVA función
 
-    def show_example_graph2(self):
-        self.current_graph = CreateGraph_2()
-        self.plot_current_graph()
+# -------------------- SHORTEST PATH --------------------
+def plot_path_with_arrows(airspace, path):
+    plt.figure(figsize=(12, 10))
 
-    def load_graph_from_file(self):
-        filename = filedialog.askopenfilename(title="Select Graph File",
-                                              filetypes=(("Text files", "*.txt"), ("All files", "*.*")))
-        if filename:
-            self.current_graph = LoadGraphFromFile(filename)
-            if self.current_graph:
-                self.plot_current_graph()
-            else:
-                messagebox.showerror("Error", "Failed to load graph from file")
+    # 1. Dibujar TODOS los nodos (en gris)
+    for np in airspace.navpoints.values():
+        plt.plot(np.longitude, np.latitude, 'o', color='gray', markersize=6)
+        plt.text(np.longitude, np.latitude + 0.05, np.name, fontsize=8, color='gray')
 
-    def show_node_neighbors(self):
-        if not self.current_graph:
-            messagebox.showwarning("Warning", "No graph loaded")
-            return
+    # 2. Resaltar los nodos del camino (en rojo)
+    for point in path.points:
+        plt.plot(point.longitude, point.latitude, 'o', color='red', markersize=8)
+        plt.text(point.longitude, point.latitude + 0.07, point.name,
+                 fontsize=9, color='red', weight='bold')
 
-        node_name = tk.simpledialog.askstring("Node Neighbors", "Enter node name:")
-        if node_name:
-            if not PlotNode(self.current_graph, node_name):
-                messagebox.showerror("Error", f"Node '{node_name}' not found in graph")
+    # 3. Dibujar SOLO los segmentos del camino (con flechas)
+    for i in range(len(path.points) - 1):
+        a = path.points[i]
+        b = path.points[i + 1]
 
-    def show_shortest_path(self):
-        if not self.current_graph or len(self.current_graph.nodes) < 2:
-            messagebox.showwarning("Warning", "Not enough nodes in graph")
-            return
-
-        origin = tk.simpledialog.askstring("Shortest Path", "Enter origin node name:")
-        if not origin:
-            return
-
-        destination = tk.simpledialog.askstring("Shortest Path", "Enter destination node name:")
-        if not destination:
-            return
-
-        path = FindShortestPath(self.current_graph, origin, destination)
-        if path:
-            messagebox.showinfo("Shortest Path",
-                                f"Path found with cost {path.cost:.1f}:\n{' -> '.join([node.name for node in path.nodes])}")
-            self.plot_path(path)
-        else:
-            messagebox.showinfo("Shortest Path", "No path exists between these nodes")
-
-    def plot_path(self, path):
-        self.ax.clear()
-
-        # Dibujar todos los segmentos en gris primero
-        for seg in self.current_graph.segments:
-            self.ax.plot([seg.origin.x, seg.destination.x],
-                         [seg.origin.y, seg.destination.y],
-                         'gray', linewidth=1, alpha=0.3)
-
-        # Resaltar segmentos del camino más corto
-        for i in range(len(path.nodes) - 1):
-            origin = path.nodes[i]
-            destination = path.nodes[i + 1]
-            self.ax.plot([origin.x, destination.x],
-                         [origin.y, destination.y],
-                         'r-', linewidth=2)
-            # Mostrar costo en rojo
-            mid_x = (origin.x + destination.x) / 2
-            mid_y = (origin.y + destination.y) / 2
-            self.ax.text(mid_x, mid_y, f"{Distance(origin, destination):.1f}",
-                         fontsize=8, ha='center', va='center', color='red',
-                         bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
-
-        # Dibujar nodos
-        for node in self.current_graph.nodes:
-            if node in path.nodes:
-                color = 'blue' if node == path.nodes[0] or node == path.nodes[-1] else 'green'
-            else:
-                color = 'gray'
-
-            self.ax.plot(node.x, node.y, 'o', markersize=10, color=color)
-            self.ax.text(node.x, node.y, node.name,
-                         fontsize=12, ha='center', va='center', color='white')
-
-        self.ax.grid(True)
-        self.ax.set_title(f"Shortest Path from {path.nodes[0].name} to {path.nodes[-1].name}")
-        self.canvas.draw()
-    def plot_current_graph(self):
-        if not self.current_graph:
-            return
-
-        self.ax.clear()
-
-        # Dibujar segmentos
-        for seg in self.current_graph.segments:
-            self.ax.plot([seg.origin.x, seg.destination.x],
-                         [seg.origin.y, seg.destination.y],
-                         'k-', linewidth=1)
-            # Mostrar costo en el medio del segmento
-            mid_x = (seg.origin.x + seg.destination.x) / 2
-            mid_y = (seg.origin.y + seg.destination.y) / 2
-            self.ax.text(mid_x, mid_y, f"{seg.cost:.1f}",
-                         fontsize=8, ha='center', va='center',
-                         bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
-
-        # Dibujar nodos
-        for node in self.current_graph.nodes:
-            self.ax.plot(node.x, node.y, 'ko', markersize=10)
-            self.ax.text(node.x, node.y, node.name,
-                         fontsize=12, ha='center', va='center', color='white')
-
-        self.ax.grid(True)
-        self.ax.set_title("Graph Visualization")
-        self.canvas.draw()
-
-    def add_node_dialog(self):
-        if not self.current_graph:
-            messagebox.showwarning("Warning", "No graph loaded. Creating new graph.")
-            self.current_graph = Graph()
-
-        name = tk.simpledialog.askstring("Add Node", "Enter node name:")
-        if name:
-            # Verificar si el nodo ya existe
-            for node in self.current_graph.nodes:
-                if node.name == name:
-                    messagebox.showerror("Error", f"Node '{name}' already exists")
-                    return
-
-            x = tk.simpledialog.askfloat("Add Node", "Enter X coordinate:")
-            y = tk.simpledialog.askfloat("Add Node", "Enter Y coordinate:")
-
-            if x is not None and y is not None:
-                AddNode(self.current_graph, Node(name, x, y))
-                self.plot_current_graph()
-
-    def add_segment_dialog(self):
-        if not self.current_graph or len(self.current_graph.nodes) < 2:
-            messagebox.showwarning("Warning", "Not enough nodes in graph")
-            return
-
-        origin = tk.simpledialog.askstring("Add Segment", "Enter origin node name:")
-        if not origin:
-            return
-
-        destination = tk.simpledialog.askstring("Add Segment", "Enter destination node name:")
-        if not destination:
-            return
-
-        # Verificar que los nodos existen
-        origin_exists = any(node.name == origin for node in self.current_graph.nodes)
-        destination_exists = any(node.name == destination for node in self.current_graph.nodes)
-
-        if not origin_exists or not destination_exists:
-            messagebox.showerror("Error", "One or both nodes not found in graph")
-            return
-
-        segment_name = f"{origin}{destination}"
-        if AddSegment(self.current_graph, segment_name, origin, destination):
-            self.plot_current_graph()
-        else:
-            messagebox.showerror("Error", "Failed to add segment")
-
-    def delete_node_dialog(self):
-        if not self.current_graph or not self.current_graph.nodes:
-            messagebox.showwarning("Warning", "No nodes in graph")
-            return
-
-        node_name = tk.simpledialog.askstring("Delete Node", "Enter node name to delete:")
-        if not node_name:
-            return
-
-        # Buscar y eliminar el nodo
-        node_to_delete = None
-        for node in self.current_graph.nodes:
-            if node.name == node_name:
-                node_to_delete = node
+        # Buscar el segmento correspondiente
+        segment = None
+        for seg in airspace.navsegments:
+            if (seg.origin_number == a.number and
+                    seg.destination_number == b.number):
+                segment = seg
                 break
 
-        if not node_to_delete:
-            messagebox.showerror("Error", f"Node '{node_name}' not found")
-            return
+        if segment:
+            dx = b.longitude - a.longitude
+            dy = b.latitude - a.latitude
 
-        # Eliminar segmentos relacionados
-        segments_to_keep = []
-        for seg in self.current_graph.segments:
-            if seg.origin != node_to_delete and seg.destination != node_to_delete:
-                segments_to_keep.append(seg)
+            # Dibujar línea base
+            plt.plot([a.longitude, b.longitude],
+                     [a.latitude, b.latitude],
+                     color='red', linewidth=2, alpha=0.7)
 
-        self.current_graph.segments = segments_to_keep
+            # Dibujar flecha
+            plt.arrow(a.longitude, a.latitude,
+                      dx * 0.85, dy * 0.85,  # Acortar flecha
+                      head_width=0.03, head_length=0.04,
+                      fc='red', ec='red',
+                      length_includes_head=True)
 
-        # Eliminar el nodo
-        self.current_graph.nodes.remove(node_to_delete)
+            # Mostrar distancia del segmento
+            mid_x = (a.longitude + b.longitude) / 2
+            mid_y = (a.latitude + b.latitude) / 2
+            plt.text(mid_x, mid_y, f"{segment.distance:.1f}km",
+                     fontsize=8, bbox=dict(facecolor='white', alpha=0.8))
 
-        # Actualizar listas de vecinos en otros nodos
-        for node in self.current_graph.nodes:
-            if node_to_delete in node.neighbors:
-                node.neighbors.remove(node_to_delete)
+    plt.title(f"Camino más corto: {path.points[0].name} → {path.points[-1].name}", pad=20)
+    plt.xlabel("Longitud")
+    plt.ylabel("Latitud")
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
 
-        self.plot_current_graph()
-        messagebox.showinfo("Success", f"Node '{node_name}' and related segments deleted")
-
-    def create_new_graph(self):
-        self.current_graph = Graph()
-        self.plot_current_graph()
-        messagebox.showinfo("Info", "New empty graph created")
-
-    def save_graph_to_file(self):
-        if not self.current_graph or not self.current_graph.nodes:
-            messagebox.showwarning("Warning", "No graph to save")
-            return
-
-        filename = filedialog.asksaveasfilename(title="Save Graph",
-                                                defaultextension=".txt",
-                                                filetypes=(("Text files", "*.txt"), ("All files", "*.*")))
-        if filename:
-            if SaveGraphToFile(self.current_graph, filename):
-                messagebox.showinfo("Success", "Graph saved successfully")
-            else:
-                messagebox.showerror("Error", "Failed to save graph")
-
-
-
-def show_shortest_path(self):
-    if not self.current_graph or len(self.current_graph.nodes) < 2:
-        messagebox.showwarning("Warning", "Not enough nodes in graph")
+def plot_complete_map():
+    if not airspace.navpoints:
         return
 
-    origin = tk.simpledialog.askstring("Shortest Path", "Enter origin node name:")
-    if not origin:
-        return
+    plt.figure(figsize=(14, 10))
 
-    destination = tk.simpledialog.askstring("Shortest Path", "Enter destination node name:")
-    if not destination:
-        return
+    # Configuración del gráfico
+    plt.title("Red Completa de Navegación Aérea", fontsize=14, pad=20)
+    plt.xlabel("Longitud")
+    plt.ylabel("Latitud")
+    plt.grid(True, alpha=0.2)
 
-    path = FindShortestPath(self.current_graph, origin, destination)
-    if path:
-        messagebox.showinfo("Shortest Path", f"Path found with cost {path.cost:.1f}:\n{' -> '.join([node.name for node in path.nodes])}")
-        self.plot_path(path)
-    else:
-        messagebox.showinfo("Shortest Path", "No path exists between these nodes")
+    # 1. Dibujar TODOS los nodos (del mismo tamaño)
+    for np in airspace.navpoints.values():
+        plt.plot(np.longitude, np.latitude, 'o',
+                 color='#1f77b4',  # Azul estándar
+                 markersize=6,
+                 alpha=0.9)
+        plt.text(np.longitude, np.latitude + 0.04, np.name,
+                 fontsize=7,
+                 color='black',
+                 ha='center')
 
-def plot_path(self, path):
-    self.ax.clear()
+    # 2. Dibujar TODOS los segmentos con flechas delgadas y precisas
+    for seg in airspace.navsegments:
+        origin = airspace.navpoints.get(seg.origin_number)
+        dest = airspace.navpoints.get(seg.destination_number)
 
-    # Dibujar todos los segmentos en gris primero
-    for seg in self.current_graph.segments:
-        self.ax.plot([seg.origin.x, seg.destination.x],
-                     [seg.origin.y, seg.destination.y],
-                     'gray', linewidth=1, alpha=0.3)
+        if origin and dest:
+            dx = dest.longitude - origin.longitude
+            dy = dest.latitude - origin.latitude
+            distance = (dx ** 2 + dy ** 2) ** 0.5
 
-    # Resaltar segmentos del camino más corto
-    for i in range(len(path.nodes)-1):
-        origin = path.nodes[i]
-        destination = path.nodes[i+1]
-        self.ax.plot([origin.x, destination.x],
-                     [origin.y, destination.y],
-                     'r-', linewidth=2)
-        # Mostrar costo en rojo
-        mid_x = (origin.x + destination.x) / 2
-        mid_y = (origin.y + destination.y) / 2
-        self.ax.text(mid_x, mid_y, f"{Distance(origin, destination):.1f}",
-                     fontsize=8, ha='center', va='center', color='red',
-                     bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
+            # Ajuste para que la flecha toque el borde del nodo
+            arrow_length = distance - 0.015  # 0.015 es el radio efectivo del nodo
 
-    # Dibujar nodos
-    for node in self.current_graph.nodes:
-        if node in path.nodes:
-            color = 'blue' if node == path.nodes[0] or node == path.nodes[-1] else 'green'
-        else:
-            color = 'gray'
+            # Flecha más delgada (linewidth=1) y precisa
+            plt.arrow(origin.longitude, origin.latitude,
+                      dx * (arrow_length / distance), dy * (arrow_length / distance),
+                      head_width=0.015,  # Más delgado
+                      head_length=0.02,  # Más corto
+                      fc='#2ca02c',  # Verde
+                      ec='#2ca02c',
+                      linewidth=1,  # Línea más fina
+                      length_includes_head=True,
+                      alpha=0.7)  # Ligera transparencia
 
-        self.ax.plot(node.x, node.y, 'o', markersize=10, color=color)
-        self.ax.text(node.x, node.y, node.name,
-                     fontsize=12, ha='center', va='center', color='white')
+            # Mostrar distancia (opcional)
+            mid_x = origin.longitude + dx * 0.45
+            mid_y = origin.latitude + dy * 0.45
+            plt.text(mid_x, mid_y, f"{seg.distance:.1f}km",
+                     fontsize=6,
+                     bbox=dict(facecolor='white', alpha=0.7))
 
-    self.ax.grid(True)
-    self.ax.set_title(f"Shortest Path from {path.nodes[0].name} to {path.nodes[-1].name}")
-    self.canvas.draw()
+    plt.tight_layout()
+    plt.show()
 
-from path import *
 
-def FindShortestPath(g, origin_name, destination_name):
-    # Encontrar nodos de origen y destino
-    origin = None
-    destination = None
-    for node in g.nodes:
-        if node.name == origin_name:
-            origin = node
-        if node.name == destination_name:
-            destination = node
+def show_shortest_path():
+    origin_name = entry_origin.get().strip().upper()
+    destination_name = entry_destination.get().strip().upper()
+    output_text.delete(1.0, tk.END)
 
-    if origin is None or destination is None:
+    # Función auxiliar para encontrar segmentos
+    def find_segment(airspace, origin, destination):
+        for seg in airspace.navsegments:
+            if seg.origin_number == origin.number and seg.destination_number == destination.number:
+                return seg
         return None
 
-    # Implementación del algoritmo A*
-    open_paths = [Path([origin], 0)]
-    visited = set()
+    # Buscar puntos (nodos normales o aeropuertos)
+    origin = airspace.get_navpoint_by_name(origin_name)
+    destination = airspace.get_navpoint_by_name(destination_name)
 
-    while open_paths:
-        # Encontrar el camino con el menor costo estimado
-        current_path = min(open_paths, key=lambda p: p.cost + Distance(p.nodes[-1], destination))
-        open_paths.remove(current_path)
-        last_node = current_path.nodes[-1]
+    # Búsqueda alternativa para aeropuertos
+    if not origin:
+        origin_airport = airspace.find_airport(origin_name)
+        if origin_airport and origin_airport.sids:
+            origin = origin_airport.sids[0]
 
-        # Si hemos llegado al destino
-        if last_node == destination:
-            return current_path
+    if not destination:
+        dest_airport = airspace.find_airport(destination_name)
+        if dest_airport and dest_airport.stars:
+            destination = dest_airport.stars[0]
 
-        # Marcar el nodo como visitado
-        if last_node in visited:
-            continue
-        visited.add(last_node)
+    # Validación
+    if not origin or not destination:
+        output_text.insert(tk.END, "❌ Nodos no encontrados. Verifique:\n")
+        if not origin:
+            output_text.insert(tk.END, f"- Origen '{origin_name}' no existe\n")
+        if not destination:
+            output_text.insert(tk.END, f"- Destino '{destination_name}' no existe\n")
 
-        # Expandir a los vecinos
-        for neighbor in last_node.neighbors:
-            if neighbor not in visited:
-                # Encontrar el segmento correspondiente
-                segment = None
-                for seg in g.segments:
-                    if seg.origin == last_node and seg.destination == neighbor:
-                        segment = seg
-                        break
+        # Mostrar nodos disponibles
+        available_nodes = sorted([np.name for np in airspace.navpoints.values()])
+        output_text.insert(tk.END, "\nPrimeros 10 nodos disponibles:\n")
+        for node in available_nodes[:10]:
+            output_text.insert(tk.END, f"- {node}\n")
+        return
 
-                if segment:
-                    new_path = AddNodeToPath(current_path, neighbor, segment.cost)
-                    open_paths.append(new_path)
+    # Buscar camino con A*
+    try:
+        result = a_star(airspace, origin, destination)
 
-    return None  # No se encontró camino
+        if not result:
+            output_text.insert(tk.END, "❌ No existe conexión entre los nodos\n")
+            return
 
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = GraphApp(root)
-    root.geometry("900x600")
-    root.mainloop()
+        # Calcular distancia total y detalles
+        total_distance = 0.0
+        path_details = []
+        for i in range(len(result.points) - 1):
+            seg = find_segment(airspace, result.points[i], result.points[i + 1])
+            if seg:
+                total_distance += seg.distance
+                path_details.append(f"{result.points[i].name} → {result.points[i + 1].name}: {seg.distance:.1f} km")
 
+        # Mostrar resultados en texto
+        output_text.insert(tk.END, f"✅ Camino encontrado ({len(result.points)} nodos):\n")
+        output_text.insert(tk.END, " → ".join(p.name for p in result.points) + "\n\n")
+        output_text.insert(tk.END, f"📏 Distancia total: {total_distance:.2f} km\n\n")
+        output_text.insert(tk.END, "Detalle por segmentos:\n")
+        for detail in path_details:
+            output_text.insert(tk.END, f"- {detail}\n")
+
+        # Configuración de visualización
+        plt.close('all')  # Cerrar cualquier mapa previo
+        fig, ax = plt.subplots(figsize=(14, 10))
+
+        # Estilos visuales
+        SEGMENT_COLOR = '#00CED1'  # Azul turquesa
+        NODE_COLOR = 'black'
+        ARROW_HEAD_WIDTH = 0.02
+        ARROW_HEAD_LENGTH = 0.03
+
+        # Dibujar todos los nodos (fondo)
+        for np in airspace.navpoints.values():
+            ax.plot(np.longitude, np.latitude, 'o',
+                    color='lightgray',
+                    markersize=4,
+                    alpha=0.4)
+            ax.text(np.longitude, np.latitude + 0.03, np.name,
+                    fontsize=6,
+                    color='gray',
+                    ha='center')
+
+        # Dibujar el camino encontrado
+        for i in range(len(result.points) - 1):
+            a = result.points[i]
+            b = result.points[i + 1]
+            dx = b.longitude - a.longitude
+            dy = b.latitude - a.latitude
+            dist = (dx ** 2 + dy ** 2) ** 0.5
+
+            # Flecha turquesa grande
+            ax.arrow(a.longitude, a.latitude,
+                     dx * (dist - 0.015) / dist, dy * (dist - 0.015) / dist,
+                     head_width=ARROW_HEAD_WIDTH,
+                     head_length=ARROW_HEAD_LENGTH,
+                     fc=SEGMENT_COLOR,
+                     ec=SEGMENT_COLOR,
+                     linewidth=1.8,
+                     length_includes_head=True)
+
+        # Resaltar nodos del camino
+        for point in result.points:
+            ax.plot(point.longitude, point.latitude, 'o',
+                    color=NODE_COLOR,
+                    markersize=7)
+            ax.text(point.longitude, point.latitude + 0.04, point.name,
+                    fontsize=9,
+                    weight='bold',
+                    color=NODE_COLOR,
+                    ha='center')
+
+        # Mostrar distancia total
+        ax.text(0.5, 0.02, f"Distancia total: {total_distance:.2f} km",
+                transform=ax.transAxes,
+                fontsize=11,
+                weight='bold',
+                ha='center',
+                bbox=dict(facecolor='white', edgecolor='black', alpha=0.9))
+
+        plt.title("Camino más corto encontrado", pad=20)
+        plt.xlabel("Longitud")
+        plt.ylabel("Latitud")
+        plt.grid(True, alpha=0.2)
+        plt.tight_layout()
+        plt.show()
+
+    except Exception as e:
+        output_text.insert(tk.END, f"❌ Error inesperado: {str(e)}\n")
+        print(f"Error en show_shortest_path: {traceback.format_exc()}")
+
+# -------------------- VISUALIZACIÓN --------------------
+
+def plot_direct_reachability(airspace, origin, direct_reachable):
+    plt.figure(figsize=(14, 10))
+
+    # Configuración del gráfico
+    plt.title(f"Conexiones DIRECTAS desde {origin.name}", fontsize=14, pad=20)
+    plt.xlabel("Longitud")
+    plt.ylabel("Latitud")
+    plt.grid(True, alpha=0.3)
+
+    # 1. Dibujar TODOS los nodos (mismo tamaño y con nombre)
+    for np in airspace.navpoints.values():
+        # Color diferente para nodos alcanzables vs otros
+        color = 'black' if np in direct_reachable else 'red' if np == origin else 'grey'
+        plt.plot(np.longitude, np.latitude, 'o',
+                 color=color,
+                 markersize=7,  # Mismo tamaño para todos
+                 alpha=0.8)
+        plt.text(np.longitude, np.latitude + 0.05, np.name,
+                 fontsize=7,
+                 ha='center',
+                 color='black' if np in direct_reachable or np == origin else '#666666')
+
+    # 2. Dibujar FLECHAS PRECISAS que tocan los nodos
+    for neighbor in direct_reachable:
+        dx = neighbor.longitude - origin.longitude
+        dy = neighbor.latitude - origin.latitude
+        distance = ((dx) ** 2 + (dy) ** 2) ** 0.5
+
+        # Flecha que llega exactamente al borde del nodo
+        arrow_length = distance - 0.02  # Ajuste para tocar el borde
+
+        plt.arrow(origin.longitude, origin.latitude,
+                  dx * (arrow_length / distance), dy * (arrow_length / distance),
+                  head_width=0.02,
+                  head_length=0.03,
+                  fc='#00CED1',
+                  ec='#00CED1',
+                  linewidth=2,
+                  length_includes_head=True)
+
+        # Mostrar distancia
+        mid_x = origin.longitude + dx * 0.45
+        mid_y = origin.latitude + dy * 0.45
+        seg = next((s for s in airspace.navsegments
+                    if s.origin_number == origin.number and s.destination_number == neighbor.number), None)
+        if seg:
+            plt.text(mid_x, mid_y, f"{seg.distance:.1f} km",
+                     fontsize=8,
+                     bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
+
+    # Leyenda mejorada
+    legend_elements = [
+        plt.Line2D([0], [0], marker='o', color='w', label='Origen',
+                   markerfacecolor='red', markersize=10),
+        plt.Line2D([0], [0], marker='o', color='w', label='Alcanzable directo',
+                   markerfacecolor='black', markersize=10),
+        plt.Line2D([0], [0], marker='o', color='w', label='Otros nodos',
+                   markerfacecolor='grey', markersize=10)
+    ]
+    plt.legend(handles=legend_elements, loc='upper right')
+
+    plt.tight_layout()
+    plt.show()
+
+def plot_shortest_path(airspace, path):
+    plt.figure(figsize=(10, 8))
+
+    # Dibuja todos los nodos en gris
+    for np in airspace.navpoints.values():
+        plt.plot(np.longitude, np.latitude, 'o', color='gray', markersize=3)
+        plt.text(np.longitude + 0.01, np.latitude + 0.01, np.name, fontsize=6)
+
+    # Dibuja todos los segmentos en gris claro
+    for seg in airspace.navsegments:
+        p1 = airspace.navpoints.get(seg.origin_number)
+        p2 = airspace.navpoints.get(seg.destination_number)
+        if p1 and p2:
+            plt.plot([p1.longitude, p2.longitude],
+                     [p1.latitude, p2.latitude],
+                     '-', color='lightgray', linewidth=0.5)
+
+    # Resalta el camino encontrado en rojo
+    for i in range(len(path.points) - 1):
+        a = path.points[i]
+        b = path.points[i + 1]
+        plt.plot([a.longitude, b.longitude],
+                 [a.latitude, b.latitude],
+                 '-', color='red', linewidth=2)
+        plt.plot(a.longitude, a.latitude, 'o', color='red', markersize=5)
+
+    # Dibuja el último punto
+    if path.points:
+        last = path.points[-1]
+        plt.plot(last.longitude, last.latitude, 'o', color='red', markersize=5)
+
+    plt.title(f"Camino más corto: {' → '.join(p.name for p in path.points)}")
+    plt.xlabel("Longitud")
+    plt.ylabel("Latitud")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_airport_path(airspace, path, origin_name, dest_name):
+    plt.close('all')
+    fig, ax = plt.subplots(figsize=(14, 10))
+
+    # Función auxiliar para encontrar segmentos
+    def find_segment(airspace, origin, destination):
+        for seg in airspace.navsegments:
+            if seg.origin_number == origin.number and seg.destination_number == destination.number:
+                return seg
+        return None
+
+    # 1. Configuración de estilos
+    SEGMENT_COLOR = '#00CED1'  # Azul turquesa
+    NODE_COLOR = 'black'
+    ARROW_HEAD_WIDTH = 0.02  # 40% más grande que antes
+    ARROW_HEAD_LENGTH = 0.03
+
+    # 2. Dibujar TODOS los nodos (fondo atenuado)
+    for np in airspace.navpoints.values():
+        ax.plot(np.longitude, np.latitude, 'o',
+                color='lightgray',
+                markersize=4,
+                alpha=0.4)
+        ax.text(np.longitude, np.latitude + 0.03, np.name,
+                fontsize=6,
+                color='gray',
+                ha='center',
+                alpha=0.6)
+
+    # 3. Calcular y dibujar el camino
+    total_distance = 0.0
+    for i in range(len(path.points) - 1):
+        a = path.points[i]
+        b = path.points[i + 1]
+        seg = find_segment(airspace, a, b)
+        if seg:
+            total_distance += seg.distance
+
+            # Dibujar segmento con flecha grande
+            dx = b.longitude - a.longitude
+            dy = b.latitude - a.latitude
+            dist = (dx ** 2 + dy ** 2) ** 0.5
+            adjust = dist - 0.015  # Ajuste para tocar el nodo
+
+            ax.arrow(a.longitude, a.latitude,
+                     dx * (adjust / dist), dy * (adjust / dist),
+                     head_width=ARROW_HEAD_WIDTH,
+                     head_length=ARROW_HEAD_LENGTH,
+                     fc=SEGMENT_COLOR,
+                     ec=SEGMENT_COLOR,
+                     linewidth=1.8,
+                     length_includes_head=True,
+                     zorder=3)  # Para que aparezca sobre otros elementos
+
+    # 4. Resaltar nodos del camino
+    for point in path.points:
+        ax.plot(point.longitude, point.latitude, 'o',
+                color=NODE_COLOR,
+                markersize=7,
+                zorder=4)
+        ax.text(point.longitude, point.latitude + 0.04, point.name,
+                fontsize=9,
+                weight='bold',
+                color=NODE_COLOR,
+                ha='center',
+                zorder=5)
+
+    # 5. Información de distancia
+    distance_text = ax.text(0.5, 0.02, f"Distancia total: {total_distance:.2f} km",
+                            transform=ax.transAxes,
+                            fontsize=11,
+                            weight='bold',
+                            ha='center',
+                            bbox=dict(facecolor='white', edgecolor=NODE_COLOR, alpha=0.9))
+
+    # 6. Configuración final
+    ax.set_title("Camino más corto encontrado", pad=20, fontsize=12, weight='bold')
+    ax.set_xlabel("Longitud", fontsize=10)
+    ax.set_ylabel("Latitud", fontsize=10)
+    ax.grid(True, alpha=0.2)
+    plt.tight_layout()
+    plt.show()
+# -------------------- INTERFAZ --------------------
+
+window = tk.Tk()
+window.title("Explorador del Espacio Aéreo V3")
+
+btn_load = tk.Button(window, text="Cargar archivos", command=load_files)
+btn_load.pack(pady=5)
+
+entry_origin = tk.Entry(window)
+entry_origin.insert(0, "GODOX")
+entry_origin.pack(pady=2)
+entry_origin_label = tk.Label(window, text="Nodo origen")
+entry_origin_label.pack()
+
+entry_destination = tk.Entry(window)
+entry_destination.insert(0, "SUKET")
+entry_destination.pack(pady=2)
+entry_destination_label = tk.Label(window, text="Nodo destino")
+entry_destination_label.pack()
+
+btn_reach = tk.Button(window, text="Mostrar alcanzables", command=show_reachability)
+btn_reach.pack(pady=5)
+
+btn_path = tk.Button(window, text="Camino más corto", command=show_shortest_path)
+btn_path.pack(pady=5)
+
+output_text = tk.Text(window, height=15, width=60)
+output_text.pack(pady=5)
+
+status_label = tk.Label(window, text="Esperando carga de archivos...")
+status_label.pack(pady=5)
+
+window.mainloop()

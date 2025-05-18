@@ -3,13 +3,16 @@ class Node:
         self.name = name
         self.x = x
         self.y = y
-        self.neighbors = []
+        self.neighbors = []  # Nodos vecinos directos
 
-def AddNeighbor(n1, n2):
-    if n2 in n1.neighbors:
+    def add_neighbor(self, neighbor_node):
+        if neighbor_node not in self.neighbors:
+            self.neighbors.append(neighbor_node)
+            return True
         return False
-    n1.neighbors.append(n2)
-    return True
+
+    def __repr__(self):
+        return f"Node('{self.name}', {self.x}, {self.y})"
 
 def Distance(n1, n2):
-    return ((n1.x - n2.x)**2 + (n1.y - n2.y)**2)**0.5
+    return ((n1.x - n2.x) ** 2 + (n1.y - n2.y) ** 2) ** 0.5

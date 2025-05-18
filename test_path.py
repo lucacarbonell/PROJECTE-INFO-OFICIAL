@@ -1,27 +1,27 @@
-from path import *
-from node import Node
+from airSpace import airSpace
+from path import a_star
 
-# Crear nodos de prueba
-n1 = Node("A", 0, 0)
-n2 = Node("B", 3, 4)
-n3 = Node("C", 6, 0)
+def test_shortest_path():
+    airspace = airSpace()
+    airspace.load_from_files("Cat_nav.txt", "Cat_seg.txt", "Cat_aer.txt")
 
-# Probar la clase Path
-print("=== Testing Path class ===")
-path = Path([n1, n2], 5.0)
-print(path)  # Debería mostrar: Path(nodes=['A', 'B'], cost=5.0)
+    # Cambia estos valores por nombres reales de puntos de tu fichero
+    origin = airspace.get_navpoint_by_name("GODOX")
+    destination = airspace.get_navpoint_by_name("SUKET")
 
-# Probar AddNodeToPath
-print("\n=== Testing AddNodeToPath ===")
-new_path = AddNodeToPath(path, n3, 6.0)
-print(new_path)  # Debería mostrar: Path(nodes=['A', 'B', 'C'], cost=11.0)
+    if origin is None or destination is None:
+        print("Error: origen o destino no encontrados.")
+        return
 
-# Probar ContainsNode
-print("\n=== Testing ContainsNode ===")
-print(ContainsNode(path, n1))  # True
-print(ContainsNode(path, n3))  # False
+    result = a_star(airspace, origin, destination)
 
-# Probar CostToNode
-print("\n=== Testing CostToNode ===")
-print(CostToNode(path, n1))  # 5.0 (simplificado)
-print(CostToNode(path, n3))  # -1
+    if result:
+        print("Camino más corto encontrado:")
+        for p in result.points:
+            print(p.name, end=" → ")
+        print(f"\nCoste total: {result.cost:.2f} km")
+    else:
+        print("No se encontró ningún camino.")
+
+if __name__ == "__main__":
+    test_shortest_path()
