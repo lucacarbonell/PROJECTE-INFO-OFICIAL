@@ -6,6 +6,11 @@ from path import a_star, bfs_fallback
 from matplotlib.patches import Arrow
 from tkinter import messagebox
 import traceback
+import os
+import time
+import platform
+import subprocess
+import traceback
 
 import matplotlib.pyplot as plt
 
@@ -48,7 +53,10 @@ def show_reachability():
         output_text.insert(tk.END, f"❌ Nodo '{origin_name}' no encontrado\n")
         return
 
-    direct_reachable = airspace.get_direct_reachable(origin)  # Usa la función modificada
+    # Obtener nodos alcanzables
+    direct_reachable = airspace.get_direct_reachable(origin)
+
+    # Mostrar en interfaz
     output_text.delete(1.0, tk.END)
     output_text.insert(tk.END, f"Nodos directamente alcanzables desde {origin.name}:\n")
 
@@ -58,7 +66,39 @@ def show_reachability():
         distance = f"{seg.distance:.1f} km" if seg else "? km"
         output_text.insert(tk.END, f"- {node.name} ({distance})\n")
 
-    plot_direct_reachability(airspace, origin, direct_reachable)  # Llama a la NUEVA función
+    # Mostrar en matplotlib
+    plot_direct_reachability(airspace, origin, direct_reachable)
+
+    # ===== NUEVA FUNCIONALIDAD: EXPORTAR A GOOGLE EARTH =====
+    try:
+        from kml_generator import create_reachability_kml, open_kml_in_google_earth
+
+        # Crear nombre de archivo en directorio temporal
+        import tempfile
+        timestamp = int(time.time())
+        kml_filename = os.path.join(tempfile.gettempdir(), f"reachable_{origin.name}_{timestamp}.kml")
+
+        print(f"\n=== INICIANDO GENERACIÓN KML ===")
+        print(f"Origen: {origin.name} ({origin.latitude}, {origin.longitude})")
+        print(f"Nodos alcanzables: {len(direct_reachable)}")
+
+        # Generar KML
+        if create_reachability_kml(origin, direct_reachable, airspace, kml_filename):
+            # Verificar archivo
+            if os.path.exists(kml_filename):
+                # Abrir en Google Earth
+                if open_kml_in_google_earth(kml_filename):
+                    output_text.insert(tk.END, "\n✅ Visualización abierta en Google Earth")
+                else:
+                    output_text.insert(tk.END, f"\n⚠️ Archivo generado: {kml_filename}")
+            else:
+                output_text.insert(tk.END, f"\n❌ Error: Archivo no creado")
+        else:
+            output_text.insert(tk.END, "\n❌ Error al generar KML")
+
+    except Exception as e:
+        output_text.insert(tk.END, f"\n❌ Error: {str(e)}")
+        print(f"Error completo: {traceback.format_exc()}")
 
 # -------------------- SHORTEST PATH --------------------
 def plot_path_with_arrows(airspace, path):
@@ -307,9 +347,93 @@ def show_shortest_path():
         plt.tight_layout()
         plt.show()
 
+        # ===== EXPORTAR Y ABRIR EN GOOGLE EARTH =====
+        from path import export_path_to_kml, open_kml_in_google_earth
+
+        # Generar nombre de archivo único con timestamp
+        timestamp = int(time.time())
+        kml_filename = f"shortest_path_{origin.name}_to_{destination.name}_{timestamp}.kml"
+
+        # Depuración: mostrar puntos de la ruta
+        print(f"Exportando ruta con {len(result.points)} puntos a {kml_filename}")
+        for i, point in enumerate(result.points):
+            print(f"Punto {i + 1}: {point.name} ({point.latitude}, {point.longitude})")
+
+        # Exportar ruta completa con nodos
+        if export_path_to_kml(result.points, kml_filename):
+            print(f"Archivo KML generado: {os.path.abspath(kml_filename)}")
+
+            # Verificar creación del archivo
+            if os.path.exists(kml_filename):
+                # Abrir inmediatamente en Google Earth
+                if open_kml_in_google_earth(kml_filename):
+                    output_text.insert(tk.END, "\n✅ Ruta abierta en Google Earth")
+                else:
+                    abs_path = os.path.abspath(kml_filename)
+                    output_text.insert(tk.END, f"\n⚠️ No se pudo abrir automáticamente")
+                    output_text.insert(tk.END, f"\nPor favor abre manualmente: {abs_path}")
+            else:
+                output_text.insert(tk.END, f"\n❌ Error: Archivo no creado - {kml_filename}")
+        else:
+            output_text.insert(tk.END, "\n❌ Error al exportar la ruta a KML")
+
     except Exception as e:
         output_text.insert(tk.END, f"❌ Error inesperado: {str(e)}\n")
-        print(f"Error en show_shortest_path: {traceback.format_exc()}")
+        print(f"Error completo en show_shortest_path: {traceback.format_exc()}")
+
+
+# -------------------- BUSCADOR DE AEROPUERTOS CERCANOS --------------------
+def find_nearby_airports():
+    try:
+        # Obtener punto central
+        center_name = entry_origin.get().strip().upper()
+        center = airspace.get_navpoint_by_name(center_name)
+        if not center:
+            output_text.insert(tk.END, f"❌ Punto central '{center_name}' no encontrado\n")
+            return
+
+        # Obtener radio
+        try:
+            radius_km = float(entry_radius.get())
+        except:
+            output_text.insert(tk.END, "❌ Radio inválido. Use números (ej: 50.0)\n")
+            return
+
+        # Buscar aeropuertos en el radio
+        nearby_airports = []
+        for airport in airspace.navairports.values():
+            if airport.sids:
+                airport_point = airport.sids[0]
+                # Calcular distancia en kilómetros (1 grado ≈ 111 km)
+                distance = center.distance_to(airport_point) * 111
+                if distance <= radius_km:
+                    nearby_airports.append((airport, distance))
+
+        # Mostrar resultados
+        output_text.delete(1.0, tk.END)
+        if not nearby_airports:
+            output_text.insert(tk.END, f"❌ No hay aeropuertos dentro de {radius_km} km de {center.name}\n")
+            return
+
+        output_text.insert(tk.END, f"✈️ Aeropuertos dentro de {radius_km} km de {center.name}:\n")
+        for airport, dist in sorted(nearby_airports, key=lambda x: x[1]):
+            output_text.insert(tk.END, f"- {airport.name}: {dist:.1f} km\n")
+
+        # Generar KML y abrir en Google Earth
+        from kml_generator import generate_airports_radius_kml
+        if generate_airports_radius_kml(center, nearby_airports, radius_km):
+            output_text.insert(tk.END, "\n✅ Visualización abierta en Google Earth")
+
+    except Exception as e:
+        output_text.insert(tk.END, f"❌ Error: {str(e)}\n")
+        print(f"Error en find_nearby_airports: {traceback.format_exc()}")
+
+
+# -------------------- INTERFAZ GRÁFICA --------------------
+# (Aquí comienza el código de creación de ventanas y widgets)
+window = tk.Tk()
+window.title("Explorador del Espacio Aéreo V4")
+
 
 # -------------------- VISUALIZACIÓN --------------------
 
@@ -498,10 +622,12 @@ def plot_airport_path(airspace, path, origin_name, dest_name):
     ax.grid(True, alpha=0.2)
     plt.tight_layout()
     plt.show()
+
+# -------------------- PIRADA ----------------------
 # -------------------- INTERFAZ --------------------
 
 window = tk.Tk()
-window.title("Explorador del Espacio Aéreo V3")
+window.title("Explorador del Espacio Aéreo V4")
 
 btn_load = tk.Button(window, text="Cargar archivos", command=load_files)
 btn_load.pack(pady=5)
@@ -523,6 +649,23 @@ btn_reach.pack(pady=5)
 
 btn_path = tk.Button(window, text="Camino más corto", command=show_shortest_path)
 btn_path.pack(pady=5)
+
+btn_export_kml = tk.Button(window, text="Exportar a KML", command=lambda: airspace.export_to_kml())
+btn_export_kml.pack(pady=5)
+
+entry_radius = tk.Entry(window, width=10)
+entry_radius.pack(pady=2)
+entry_radius_label = tk.Label(window, text="Radio de búsqueda (km)")
+entry_radius_label.pack()
+
+btn_find_airports = tk.Button(
+    window,
+    text="Buscar aeropuertos cercanos",
+    command=find_nearby_airports,
+    bg="#9C27B0",  # Color morado
+    fg="white"
+)
+btn_find_airports.pack(pady=10)
 
 output_text = tk.Text(window, height=15, width=60)
 output_text.pack(pady=5)

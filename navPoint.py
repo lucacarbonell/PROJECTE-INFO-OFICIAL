@@ -1,3 +1,4 @@
+import math
 class navPoint:
     def __init__(self, number, name, latitude, longitude):
         self.number = number

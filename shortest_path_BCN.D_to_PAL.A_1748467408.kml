@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+<Style id="route_style">
+            <LineStyle><color>ff0000ff</color><width>4</width></LineStyle>
+        </Style><Style id="node_style">
+            <IconStyle>
+                <color>ff00ffff</color>
+                <scale>0.7</scale>
+                <Icon><href>http://maps.google.com/mapfiles/kml/shapes/shaded_dot.png</href></Icon>
+            </IconStyle>
+        </Style><Style id="origin_style">
+            <IconStyle><color>ff00ff00</color><scale>1.5</scale></IconStyle>
+        </Style><Style id="dest_style">
+            <IconStyle><color>ffff0000</color><scale>1.5</scale></IconStyle>
+        </Style><Placemark>
+            <name>Ruta más corta</name>
+            <description>Desde BCN.D a PAL.A</description>
+            <styleUrl>#route_style</styleUrl>
+            <LineString>
+                <coordinates>2.0768662333,41.2972901333,0 1.9872222222,41.2658333333,0 1.9855555556,41.0716666667,0 2.3486111111,40.6266666667,0 2.3927777778,40.5,0 2.4963888889,40.2022222222,0 3.1147222222,39.9275,0 3.08,39.7188888889,0 2.7460279167,39.5640048,0</coordinates>
+            </LineString>
+        </Placemark><Placemark>
+                <name>ORIGEN: BCN.D</name>
+                <styleUrl>#origin_style</styleUrl>
+                <Point>
+                    <coordinates>2.0768662333,41.2972901333,0</coordinates>
+                </Point>
+            </Placemark><Placemark>
+                <name>GAVMA</name>
+                <styleUrl>#node_style</styleUrl>
+                <Point>
+                    <coordinates>1.9872222222,41.2658333333,0</coordinates>
+                </Point>
+            </Placemark><Placemark>
+                <name>NITBA</name>
+                <styleUrl>#node_style</styleUrl>
+                <Point>
+                    <coordinates>1.9855555556,41.0716666667,0</coordinates>
+                </Point>
+            </Placemark><Placemark>
+                <name>LARPA</name>
+                <styleUrl>#node_style</styleUrl>
+                <Point>
+                    <coordinates>2.3486111111,40.6266666667,0</coordinates>
+                </Point>
+            </Placemark><Placemark>
+                <name>TOLSO</name>
+                <styleUrl>#node_style</styleUrl>
+                <Point>
+                    <coordinates>2.3927777778,40.5,0</coordinates>
+                </Point>
+            </Placemark><Placemark>
+                <name>LISAS</name>
+                <styleUrl>#node_style</styleUrl>
+                <Point>
+                    <coordinates>2.4963888889,40.2022222222,0</coordinates>
+                </Point>
+            </Placemark><Placemark>
+                <name>POS</name>
+                <styleUrl>#node_style</styleUrl>
+                <Point>
+                    <coordinates>3.1147222222,39.9275,0</coordinates>
+                </Point>
+            </Placemark><Placemark>
+                <name>MUROS</name>
+                <styleUrl>#node_style</styleUrl>
+                <Point>
+                    <coordinates>3.08,39.7188888889,0</coordinates>
+                </Point>
+            </Placemark><Placemark>
+                <name>DESTINO: PAL.A</name>
+                <styleUrl>#dest_style</styleUrl>
+                <Point>
+                    <coordinates>2.7460279167,39.5640048,0</coordinates>
+                </Point>
+            </Placemark>
+</Document>
+</kml>

@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+<Style id="route_style">
+            <LineStyle><color>ff0000ff</color><width>4</width></LineStyle>
+        </Style><Style id="node_style">
+            <IconStyle>
+                <color>ff00ffff</color>
+                <scale>0.7</scale>
+                <Icon><href>http://maps.google.com/mapfiles/kml/shapes/shaded_dot.png</href></Icon>
+            </IconStyle>
+        </Style><Style id="origin_style">
+            <IconStyle><color>ff00ff00</color><scale>1.5</scale></IconStyle>
+        </Style><Style id="dest_style">
+            <IconStyle><color>ffff0000</color><scale>1.5</scale></IconStyle>
+        </Style><Placemark>
+            <name>Ruta más corta</name>
+            <description>Desde GODOX a LISAS</description>
+            <styleUrl>#route_style</styleUrl>
+            <LineString>
+                <coordinates>1.4108333333,39.3725,0 1.28,40.3547222222,0 1.2316666667,40.7086111111,0 1.0030555556,40.5497222222,0 0.5883333333,40.2580555556,0 -0.0047222222,39.8338888889,0 0.1430555556,40.2308333333,0 0.2699069167,40.55538575,0 1.7058333333,40.9738888889,0 0.9115302,41.0547276833,0 2.2866666667,40.8027777778,0 2.3486111111,40.6266666667,0 2.3927777778,40.5,0 2.4963888889,40.2022222222,0</coordinates>
+            </LineString>
+        </Placemark><Placemark>
+                <name>ORIGEN: GODOX</name>
+                <styleUrl>#origin_style</styleUrl>
+                <Point>
+                    <coordinates>1.4108333333,39.3725,0</coordinates>
+                </Point>
+            </Placemark><Placemark>
+                <name>MARTA</name>
+                <styleUrl>#node_style</styleUrl>
+                <Point>
+                    <coordinates>1.28,40.3547222222,0</coordinates>
+                </Point>
+            </Placemark><Placemark>
+                <name>EBROX</name>
+                <styleUrl>#node_style</styleUrl>
+                <Point>
+                    <coordinates>1.2316666667,40.7086111111,0</coordinates>
+                </Point>
+            </Placemark><Placemark>
+                <name>LOTOS</name>
+                <styleUrl>#node_style</styleUrl>
+                <Point>
+                    <coordinates>1.0030555556,40.5497222222,0</coordinates>
+                </Point>
+            </Placemark><Placemark>
+                <name>TORDU</name>
+                <styleUrl>#node_style</styleUrl>
+                <Point>
+                    <coordinates>0.5883333333,40.2580555556,0</coordinates>
+                </Point>
+            </Placemark><Placemark>
+                <name>SOPET</name>
+                <styleUrl>#node_style</styleUrl>
+                <Point>
+                    <coordinates>-0.0047222222,39.8338888889,0</coordinates>
+                </Point>
+            </Placemark><Placemark>
+                <name>CASIM</name>
+                <styleUrl>#node_style</styleUrl>
+                <Point>
+                    <coordinates>0.1430555556,40.2308333333,0</coordinates>
+                </Point>
+            </Placemark><Placemark>
+                <name>ARLE0</name>
+                <styleUrl>#node_style</styleUrl>
+                <Point>
+                    <coordinates>0.2699069167,40.55538575,0</coordinates>
+                </Point>
+            </Placemark><Placemark>
+                <name>RUBOT</name>
+                <styleUrl>#node_style</styleUrl>
+                <Point>
+                    <coordinates>1.7058333333,40.9738888889,0</coordinates>
+                </Point>
+            </Placemark><Placemark>
+                <name>RES01</name>
+                <styleUrl>#node_style</styleUrl>
+                <Point>
+                    <coordinates>0.9115302,41.0547276833,0</coordinates>
+                </Point>
+            </Placemark><Placemark>
+                <name>GARBI</name>
+                <styleUrl>#node_style</styleUrl>
+                <Point>
+                    <coordinates>2.2866666667,40.8027777778,0</coordinates>
+                </Point>
+            </Placemark><Placemark>
+                <name>LARPA</name>
+                <styleUrl>#node_style</styleUrl>
+                <Point>
+                    <coordinates>2.3486111111,40.6266666667,0</coordinates>
+                </Point>
+            </Placemark><Placemark>
+                <name>TOLSO</name>
+                <styleUrl>#node_style</styleUrl>
+                <Point>
+                    <coordinates>2.3927777778,40.5,0</coordinates>
+                </Point>
+            </Placemark><Placemark>
+                <name>DESTINO: LISAS</name>
+                <styleUrl>#dest_style</styleUrl>
+                <Point>
+                    <coordinates>2.4963888889,40.2022222222,0</coordinates>
+                </Point>
+            </Placemark>
+</Document>
+</kml>

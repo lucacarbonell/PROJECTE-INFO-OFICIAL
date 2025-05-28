@@ -1,7 +1,6 @@
 from navPoint import navPoint
 from navSegment import navSegment
 from navAirport import navAirport
-from collections import deque
 
 class airSpace:
     def __init__(self):
@@ -131,5 +130,51 @@ class airSpace:
                 f"{len(self.navsegments)} segments, "
                 f"{len(self.navairports)} airports")
 
+    def export_to_kml(self, filename="airspace.kml"):
+        """Exporta todos los elementos a KML y lo abre en Google Earth"""
+        from kml_generator import (
+            create_kml_point,
+            create_kml_line,
+            create_kml_airport,
+            generate_kml_file,
+            open_kml_in_google_earth
+        )
 
+        # Verificar datos cargados
+        if not self.navpoints:
+            print("Error: No hay datos de navegación cargados")
+            return False
 
+        content = []
+
+        # 1. Aeropuertos (chinchetas rojas)
+        for airport in self.navairports.values():
+            airport_kml = create_kml_airport(airport, self.navpoints)
+            if airport_kml:
+                content.append(airport_kml)
+
+        # 2. Puntos de navegación (puntos amarillos)
+        for np in self.navpoints.values():
+            content.append(create_kml_point(np))
+
+        # 3. Segmentos (líneas verdes)
+        line_style = """<Style id="segment_style">
+            <LineStyle><color>ff00ff00</color><width>2</width></LineStyle>
+        </Style>"""
+        content.append(line_style)
+
+        for seg in self.navsegments:
+            origin = self.navpoints.get(seg.origin_number)
+            dest = self.navpoints.get(seg.destination_number)
+            if origin and dest:
+                content.append(create_kml_line(
+                    [origin, dest],
+                    name=f"{origin.name} → {dest.name}",
+                    description=f"Distancia: {seg.distance:.1f} km"
+                ))
+
+        # Generar archivo
+        generate_kml_file("\n".join(content), filename)
+
+        # Abrir en Google Earth
+        return open_kml_in_google_earth(filename)
